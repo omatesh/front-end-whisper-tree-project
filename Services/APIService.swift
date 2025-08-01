@@ -10,7 +10,12 @@ import Foundation
 class APIService: ObservableObject {
     static let shared = APIService()
 
+//    baseURL to run when backend is running on this:
+//    flask run --host=0.0.0.0 --port=5000
     private let baseURL = "http://192.168.1.231:5000"
+    
+//    baseURL to run when backend is running on Render:
+//    private let baseURL = "https://backend-whisper-tree-on-render.onrender.com"
     private init() {}
 
     // MARK: - Collection Operations
@@ -238,6 +243,7 @@ class APIService: ObservableObject {
                 throw APIError.invalidResponse
             }
         }
+        
     }
 
     // MARK: - Core API Search Operations

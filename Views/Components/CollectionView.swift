@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+//This View receives state as props, delegates actions back up
 struct CollectionView: View {
     let collection: Collection
     let isSelected: Bool
@@ -60,7 +61,7 @@ struct CollectionView: View {
                         // FIXED: Use LazyVStack without ScrollView - parent will handle scrolling
                         LazyVStack(spacing: 12) {
                             ForEach(selected.papers) { paper in
-                                PaperRow(paper: paper, onDelete: onDeletePaper)
+                                PaperRow(paper: paper, onDeletePaper: onDeletePaper)
                             }
                         }
                         .padding(.vertical, 8)

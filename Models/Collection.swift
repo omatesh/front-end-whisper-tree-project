@@ -13,6 +13,16 @@ struct Collection: Codable, Identifiable, Hashable {
     let description: String
     let papersCount: Int
     var papers: [Paper]
+    
+    // Add convenience initializer for creating new instances
+    init(id: Int, title: String, owner: String?, description: String, papersCount: Int, papers: [Paper]) {
+        self.id = id
+        self.title = title
+        self.owner = owner
+        self.description = description
+        self.papersCount = papersCount
+        self.papers = papers
+    }
 
     enum CodingKeys: String, CodingKey {
         case id = "collection_id"  // Updated to match your backend

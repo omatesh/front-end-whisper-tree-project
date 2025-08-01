@@ -57,7 +57,9 @@ struct ContentView: View {
                                 onClose: {
                                     selectedCollection = nil
                                 },
-                                onDelete: { deleteCollection(collection.id) },
+                                onDelete: {
+                                    deleteCollection(collection.id)
+                                },
                                 onAddPaper: addPaper,
                                 onDeletePaper: deletePaper
                             )
@@ -68,6 +70,7 @@ struct ContentView: View {
                 }
             }
         }
+        //Starts teh app. When ContentView appears, SwiftUI calls loadCollections()
         .task { loadCollections() }
         .sheet(isPresented: $showAddForm) {
             NewCollectionForm { title, owner, description in
@@ -80,15 +83,10 @@ struct ContentView: View {
                 onAddPaperToCollection: addPaper
             )
         }
-        // ADDED: Refresh collections when returning from search sheet
         .onChange(of: showSearchSheet) {
             if !showSearchSheet {
-                // Search sheet was dismissed, refresh collections
-                print("🔄 [CONTENT VIEW] Search sheet dismissed, refreshing collections...")
-                
-                // Add a small delay to ensure backend has processed any changes
                 Task {
-                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+                    try await Task.sleep(nanoseconds: 500_000_000)
                     await MainActor.run {
                         loadCollections()
                     }
@@ -98,56 +96,48 @@ struct ContentView: View {
     }
 
     // MARK: - Actions
+    
+    //First State Load. The UI stays responsive — animations, taps, scrolls still work
+    //loadCollections() is called in the background, and the function is suspended at await
+    //until the data returns (just like promise)
     func loadCollections() {
-        print("🔄 [CONTENT VIEW] === LOADING COLLECTIONS ===")
-        print("🔄 [CONTENT VIEW] Current collections count: \(collections.count)")
-        
         Task {
             do {
+                //Try to fetch the data from the shared API service. store the result in newCollections
+                // .shared a singleton pattern, a way to create one shared instance of a class that can be
+                //used throughout your app
                 let newCollections = try await APIService.shared.loadCollections()
-                
+                //When the result is ready and it is True, resume execution , using MainActor.run
+                // switch to the main thread and update the UI
                 await MainActor.run {
-                    print("✅ [CONTENT VIEW] === COLLECTIONS LOADED ===")
-                    print("✅ [CONTENT VIEW] New collections count: \(newCollections.count)")
-                    
-                    // Log paper counts for each collection
-                    for collection in newCollections {
-                        let oldCount = collections.first(where: { $0.id == collection.id })?.papersCount ?? 0
-                        let newCount = collection.papersCount
-                        
-                        if oldCount != newCount {
-                            print("📊 [CONTENT VIEW] Collection '\(collection.title)' count changed: \(oldCount) → \(newCount)")
-                        } else {
-                            print("📊 [CONTENT VIEW] Collection '\(collection.title)' count unchanged: \(newCount)")
-                        }
-                    }
-                    
-                    collections = newCollections
-                    print("✅ [CONTENT VIEW] Collections state updated")
+                    collections = newCollections // ← STATE FLOWS DOWN from here
                 }
+                // When an error happens, switch to the main thread using MainActor.run
+                // and update the UI by setting the error message
             } catch {
-                errorMessage = "Error loading collections: \(error.localizedDescription)"
-                print("❌ [CONTENT VIEW] Error loading collections: \(error)")
+                await MainActor.run {
+                    //localizedDescription is a property of the error that provides a user-friendly
+                    //description of what caused the error, displaid in the UI
+                    errorMessage = "Error loading collections: \(error.localizedDescription)"
+                }
             }
         }
     }
 
     func selectCollection(_ collection: Collection) {
-        // Only open if not already selected, don't close on reselect
-        if selectedCollection?.id == collection.id {
-            return
-        }
-
         Task {
             do {
                 let papers = try await APIService.shared.fetchPapers(for: collection.id)
 
-                var updatedCollection = collection
-                updatedCollection.papers = papers
-                selectedCollection = updatedCollection
+                await MainActor.run {
+                    var updatedCollection = collection
+                    updatedCollection.papers = papers
+                    selectedCollection = updatedCollection
+                }
             } catch {
-                print("Error in selectCollection: \(error)")
-                errorMessage = "Error loading papers: \(error.localizedDescription)"
+                await MainActor.run {
+                    errorMessage = "Error loading papers: \(error.localizedDescription)"
+                }
             }
         }
     }
@@ -156,10 +146,15 @@ struct ContentView: View {
         Task {
             do {
                 try await APIService.shared.createCollection(title: title, owner: owner, description: description)
-                loadCollections() // Refresh the list
-                showAddForm = false
+                
+                await MainActor.run {
+                    showAddForm = false
+                    loadCollections()
+                }
             } catch {
-                errorMessage = "Error creating collection: \(error.localizedDescription)"
+                await MainActor.run {
+                    errorMessage = "Error creating collection: \(error.localizedDescription)"
+                }
             }
         }
     }
@@ -168,95 +163,63 @@ struct ContentView: View {
         Task {
             do {
                 try await APIService.shared.deleteCollection(id: id)
-                collections.removeAll { $0.id == id }
-                if selectedCollection?.id == id { selectedCollection = nil }
+                
+                await MainActor.run {
+                    collections.removeAll { $0.id == id }
+                    if selectedCollection?.id == id {
+                        selectedCollection = nil
+                    }
+                }
             } catch {
-                errorMessage = "Error deleting collection: \(error.localizedDescription)"
+                await MainActor.run {
+                    errorMessage = "Error deleting collection: \(error.localizedDescription)"
+                }
             }
         }
     }
 
     func addPaper(collectionId: Int, searchResult: SearchResultItem) {
-        print("📝 [CONTENT VIEW] === ADD PAPER STARTED ===")
-        print("📝 [CONTENT VIEW] Collection ID: \(collectionId)")
-        print("📝 [CONTENT VIEW] Paper title: \(searchResult.title)")
-        print("📝 [CONTENT VIEW] Paper core_id: \(searchResult.coreId ?? "nil")")
-        
         Task {
             do {
-                // Get current collection count before adding
-                let currentCollection = collections.first(where: { $0.id == collectionId })
-                let currentCount = currentCollection?.papersCount ?? 0
-                print("📝 [CONTENT VIEW] Current paper count for collection: \(currentCount)")
-                
                 try await APIService.shared.addPaper(collectionId: collectionId, searchResult: searchResult)
-                print("✅ [CONTENT VIEW] API call completed successfully")
                 
-                print("🔄 [CONTENT VIEW] Refreshing collections after adding paper...")
-                // Add a small delay to ensure backend has processed the addition
-                try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
-                
-                await MainActor.run {
-                    loadCollections()
-                }
-                
-                // Wait for collections to load and then check the count
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
-                
-                await MainActor.run {
-                    let updatedCollection = collections.first(where: { $0.id == collectionId })
-                    let updatedCount = updatedCollection?.papersCount ?? 0
-                    print("📊 [CONTENT VIEW] Updated paper count: \(currentCount) → \(updatedCount)")
+                // Refresh the selected collection to show new paper
+                if let selected = selectedCollection, selected.id == collectionId {
+                    let papers = try await APIService.shared.fetchPapers(for: collectionId)
                     
-                    if updatedCount > currentCount {
-                        print("✅ [CONTENT VIEW] Paper count increased as expected!")
-                    } else {
-                        print("⚠️ [CONTENT VIEW] Paper count did not increase - backend might not be updating count")
+                    await MainActor.run {
+                        var updatedCollection = selected
+                        updatedCollection.papers = papers
+                        selectedCollection = updatedCollection
                     }
                 }
-                
-                // Reload the selected collection to show the new paper
-                if let selected = selectedCollection,
-                   let collection = collections.first(where: { $0.id == selected.id }) {
-                    print("🔄 [CONTENT VIEW] Reloading selected collection papers...")
-                    selectCollection(collection)
-                }
             } catch {
-                errorMessage = "Error adding paper: \(error.localizedDescription)"
-                print("❌ [CONTENT VIEW] Error adding paper: \(error)")
+                await MainActor.run {
+                    errorMessage = "Error adding paper: \(error.localizedDescription)"
+                }
             }
         }
     }
 
     func deletePaper(_ id: Int) {
-        print("🗑️ [CONTENT VIEW] === DELETE PAPER STARTED ===")
-        print("🗑️ [CONTENT VIEW] Paper ID: \(id)")
-        
         Task {
             do {
-                // Get current collection count before deleting
-                let currentSelectedCount = selectedCollection?.papers.count ?? 0
-                print("🗑️ [CONTENT VIEW] Current selected collection paper count: \(currentSelectedCount)")
-                
                 try await APIService.shared.deletePaper(id: id)
-                print("✅ [CONTENT VIEW] Delete API call completed")
                 
-                // Remove from local state immediately
-                selectedCollection?.papers.removeAll { $0.id == id }
+                // Refresh selected collection to remove deleted paper
+                if let selected = selectedCollection {
+                    selectCollection(selected)
+                }
                 
-                let newSelectedCount = selectedCollection?.papers.count ?? 0
-                print("📊 [CONTENT VIEW] Local paper count: \(currentSelectedCount) → \(newSelectedCount)")
-                
-                print("🔄 [CONTENT VIEW] Refreshing collections after deleting paper...")
-                // Add delay to ensure backend has processed the deletion
-                try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
-                
+                // Refresh collections list to update paper counts
                 await MainActor.run {
                     loadCollections()
                 }
+                
             } catch {
-                errorMessage = "Error deleting paper: \(error.localizedDescription)"
-                print("❌ [CONTENT VIEW] Error deleting paper: \(error)")
+                await MainActor.run {
+                    errorMessage = "Error deleting paper: \(error.localizedDescription)"
+                }
             }
         }
     }

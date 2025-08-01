@@ -7,9 +7,10 @@
 
 import SwiftUI
 
+//Pure presentation component with callback-based actions
 struct PaperRow: View {
     let paper: Paper
-    let onDelete: (Int) -> Void
+    let onDeletePaper: (Int) -> Void
 
     var body: some View {
         HStack {
@@ -106,7 +107,7 @@ struct PaperRow: View {
                 .background(Capsule().fill(Color.yellow.opacity(0.2)))
 
                 Button(action: {
-                    onDelete(paper.id)
+                    onDeletePaper(paper.id)
                 }) {
                     Image(systemName: "trash")
                         .font(.caption)
