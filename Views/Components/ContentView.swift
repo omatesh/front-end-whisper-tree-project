@@ -7,51 +7,69 @@
 
 import SwiftUI
 
-struct ContentView: View {
-    @State private var collections: [Collection] = []
-    @State private var selectedCollection: Collection? = nil
+// ContentView.swift (PARENT)
+struct ContentView: View { //App view starts here
+    // ContentView has the data
+    @State private var collections: [Collection] = []                 // ← Parent owns the state
+    @State private var selectedCollection: Collection? = nil          // ← Parent owns the state
     @State private var showAddForm = false
     @State private var showSearchSheet = false
+    @State private var showNetworkView = false
+    @State private var showVisualizationView = false
     @State private var errorMessage = ""
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Fixed header section (not scrollable)
-                VStack {
+        NavigationView {                                  // ← CONTAINER that provides navigation context
+            VStack(spacing: 0) {                          // creates a vertical stack == full page layout
+                // header section (not scrollable)
+                VStack {                                  // Header group
                     Text("Research Collections")
                         .font(.largeTitle)
                         .padding()
 
-                    if !errorMessage.isEmpty {
-                        Text(errorMessage)
+                    if !errorMessage.isEmpty {             //if error is not NOT empty
+                        Text(errorMessage)                 // print message
                             .foregroundColor(.red)
                             .padding(.horizontal)
                     }
 
-                    HStack {
+                    HStack {                              //creates a horizontal stack w/4 buttons
+                                                          // Each button sets a Bool state variable to true
                         Button("➕ Create New Collection") {
-                            showAddForm = true
+                            showAddForm = true            //controls whether the pop-up (sheet) is visible
                         }
                         .padding()
 
                         Button("🔍 Search Core API") {
-                            showSearchSheet = true
+                            showSearchSheet = true        //controls whether the pop-up (sheet) is visible
+                        }
+                        .padding()
+                        
+                        Button("🕸️ Paper Network") {
+                            showNetworkView = true        //controls whether the pop-up (sheet) is visible
+                        }
+                        .padding()
+                        
+                        Button("📊 Visualize Papers") {
+                            showVisualizationView = true  //controls whether the pop-up (sheet) is visible
                         }
                         .padding()
                     }
                 }
-                .background(Color(.systemBackground))
+                .background(Color(.systemBackground))    // uses the system’s default background color
                 
-                // Scrollable collections section
+                // Scrollable collections section starts here
                 ScrollView {
                     LazyVStack(spacing: 16) {
-                        ForEach(collections) { collection in
-                            CollectionView(
-                                collection: collection,
+                        ForEach(collections) { collection in        // ← DATA iteration is happaning
+                            CollectionView(                         // ← Parent CREATES child
+                                collection: collection,             // ← Parent PASSES state down
+                                // ?. If selectedCollection exists, get its .id
+                                //If selectedCollection.id is equal to collection.id, then set isSelected
+                                //to true. Otherwise, false
                                 isSelected: selectedCollection?.id == collection.id,
                                 selectedCollection: selectedCollection,
-                                onSelect: {
+                                onSelect: {                         // ← Parent HANDLES actions
                                     selectCollection(collection)
                                 },
                                 onClose: {
@@ -63,30 +81,50 @@ struct ContentView: View {
                                 onAddPaper: addPaper,
                                 onDeletePaper: deletePaper
                             )
-                            .id(collection.id)
+                            .id(collection.id)  //Use this existing unique ID value from my data (collection.id)
+                            //as the identity (name tag) for this view
                         }
                     }
                     .padding()
                 }
             }
         }
-        //Starts teh app. When ContentView appears, SwiftUI calls loadCollections()
-        .task { loadCollections() }
-        .sheet(isPresented: $showAddForm) {
-            NewCollectionForm { title, owner, description in
+        //Starts the data flow. When ContentView appears, collections might be empty or outdated.
+        // SwiftUI calls loadCollections() once to fetch/load the collections list with fresh, up-to-date data
+        .task { loadCollections() } //view modifier attached it directly to a View
+        .sheet(isPresented: $showAddForm) { //view modifier. When showAddForm is true, show a sheet (pop-up)
+            // inside it, show the NewCollectionForm view
+            //This is a closure (lambda in other languages) defining a mini function right inside the code
+            NewCollectionForm { title, owner, description in // This is input to the closure
+                //when the user submits the form, call the createCollection(...) function with the form’s values
                 createCollection(title: title, owner: owner, description: description)
             }
         }
-        .sheet(isPresented: $showSearchSheet) {
-            CoreAPISearchView(
-                selectedCollection: $selectedCollection,
-                onAddPaperToCollection: addPaper
+        .sheet(isPresented: $showSearchSheet) { //view modifier. When showSearchSheet is true, -> (pop-up)
+            CoreAPISearchView(                                      // ContentView(Parent) → CoreAPISearchView
+                selectedCollection: $selectedCollection,            // ← Two-way binding (special case)
+                onAddPaperToCollection: addPaper                    // ← Callback flows up
             )
         }
+        .fullScreenCover(isPresented: $showNetworkView) { //view modifier. When ... true, -> (pop-up-full screen)
+            PaperNetworkView {                                      // ContentView(Parent) → PaperNetworkView
+                //The callback is passed, but without naming the parameter
+                showNetworkView = false                             //updates state variable
+            }
+        }
+        .fullScreenCover(isPresented: $showVisualizationView) {    //When ... true, -> (pop-up-full screen)
+            PaperVisualizationSelectionView(                       // ContentView(Parent) → PaperVis..
+                collections: collections,
+                onDismiss: { showVisualizationView = false }
+            )
+        }
+        // watches the showSearchSheet Boolean state
         .onChange(of: showSearchSheet) {
-            if !showSearchSheet {
+            if !showSearchSheet { //only run when showSearchSheet becomes false
+                //meaning the search sheet (pop-up) is closed
                 Task {
                     try await Task.sleep(nanoseconds: 500_000_000)
+                    //after the wait, run loadCollections() on the main thread, and update the UI
                     await MainActor.run {
                         loadCollections()
                     }
@@ -98,19 +136,20 @@ struct ContentView: View {
     // MARK: - Actions
     
     //First State Load. The UI stays responsive — animations, taps, scrolls still work
+    //this function called above .task { loadCollections() }
     //loadCollections() is called in the background, and the function is suspended at await
     //until the data returns (just like promise)
     func loadCollections() {
         Task {
             do {
                 //Try to fetch the data from the shared API service. store the result in newCollections
-                // .shared a singleton pattern, a way to create one shared instance of a class that can be
-                //used throughout your app
+                // .shared a singleton pattern, a way to create one shared instance of a class
+                //that can be used throughout your app
                 let newCollections = try await APIService.shared.loadCollections()
                 //When the result is ready and it is True, resume execution , using MainActor.run
                 // switch to the main thread and update the UI
                 await MainActor.run {
-                    collections = newCollections // ← STATE FLOWS DOWN from here
+                    collections = newCollections // ← STATE FLOWS DOWN from here → CollectionView (State Passing)
                 }
                 // When an error happens, switch to the main thread using MainActor.run
                 // and update the UI by setting the error message
@@ -118,6 +157,8 @@ struct ContentView: View {
                 await MainActor.run {
                     //localizedDescription is a property of the error that provides a user-friendly
                     //description of what caused the error, displaid in the UI
+                    //The \(...) syntax is used inside a string to insert the value of
+                    //variable, expression, or function call
                     errorMessage = "Error loading collections: \(error.localizedDescription)"
                 }
             }
@@ -130,9 +171,10 @@ struct ContentView: View {
                 let papers = try await APIService.shared.fetchPapers(for: collection.id)
 
                 await MainActor.run {
-                    var updatedCollection = collection
-                    updatedCollection.papers = papers
-                    selectedCollection = updatedCollection
+                    var updatedCollection = collection //makes a copy of the existing collection obj
+                    updatedCollection.papers = papers // replaces the old papers with a new list of papers
+                    selectedCollection = updatedCollection // updates the state variable selectedCollection
+                    //to the new collection with the updated papers
                 }
             } catch {
                 await MainActor.run {
@@ -145,10 +187,12 @@ struct ContentView: View {
     func createCollection(title: String, owner: String, description: String) {
         Task {
             do {
+                //calls a function that sends the new collection data to a backend server (API) to save it
+                //it waits until the server finishes
                 try await APIService.shared.createCollection(title: title, owner: owner, description: description)
                 
-                await MainActor.run {
-                    showAddForm = false
+                await MainActor.run { //when the server is done, this switches back to the main UI thread to
+                    showAddForm = false //closes the form
                     loadCollections()
                 }
             } catch {
@@ -159,15 +203,19 @@ struct ContentView: View {
         }
     }
 
+    //_ id means no need to write the parameter name when calling the function,just pass the value directly
     func deleteCollection(_ id: Int) {
         Task {
             do {
                 try await APIService.shared.deleteCollection(id: id)
                 
                 await MainActor.run {
+                    //$0 is shorthand syntax in Swift for the first argument passed into a closure
+                    // removes all items from the collections array where the item's id matches the given id
                     collections.removeAll { $0.id == id }
+                    //? if selectedCollection exists, then check its .id
                     if selectedCollection?.id == id {
-                        selectedCollection = nil
+                        selectedCollection = nil //clears the selection
                     }
                 }
             } catch {
@@ -181,9 +229,10 @@ struct ContentView: View {
     func addPaper(collectionId: Int, searchResult: SearchResultItem) {
         Task {
             do {
+                //adds a new paper to the backend database (via API)
                 try await APIService.shared.addPaper(collectionId: collectionId, searchResult: searchResult)
                 
-                // Refresh the selected collection to show new paper
+                // refreshes the selected collection to show new paper
                 if let selected = selectedCollection, selected.id == collectionId {
                     let papers = try await APIService.shared.fetchPapers(for: collectionId)
                     
