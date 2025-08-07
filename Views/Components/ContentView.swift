@@ -60,6 +60,7 @@ struct ContentView: View { //App view starts here
                 
                 // Scrollable collections section starts here
                 ScrollView {
+                    //LazyVStack only creates views when they're about to appear on screen (lazy loading)
                     LazyVStack(spacing: 16) {
                         ForEach(collections) { collection in        // ← DATA iteration is happaning
                             CollectionView(                         // ← Parent CREATES child
@@ -69,16 +70,20 @@ struct ContentView: View { //App view starts here
                                 //to true. Otherwise, false
                                 isSelected: selectedCollection?.id == collection.id,
                                 selectedCollection: selectedCollection,
-                                onSelect: {                         // ← Parent HANDLES actions
-                                    selectCollection(collection)
+                                onSelect: {                         // ← ContedntView HANDLES actions
+                                    selectCollection(collection)    // ContentView CALLS this function
                                 },
                                 onClose: {
-                                    selectedCollection = nil
+                                    selectedCollection = nil        //ContentView SETS state variable to nil
                                 },
                                 onDelete: {
-                                    deleteCollection(collection.id)
+                                    deleteCollection(collection.id) //ContentView CALLS this function
                                 },
-                                onAddPaper: addPaper,
+                                //Shorthand for: onAddPaper: { addPaper($0, $1) }
+                                onAddPaper: addPaper, //addPaper($0, $1) means pass the first and second
+                                // arguments that the child sends up to the addPaper function
+                                
+                                // Shorthand for: onDeletePaper: { deletePaper($0) }
                                 onDeletePaper: deletePaper
                             )
                             .id(collection.id)  //Use this existing unique ID value from my data (collection.id)
@@ -251,16 +256,17 @@ struct ContentView: View { //App view starts here
     }
 
     func deletePaper(_ id: Int) {
-        Task {
+        Task { //creates an async task to handle the deletion without blocking the UI
             do {
+                //calls the backend API to actually delete the paper from the database
                 try await APIService.shared.deletePaper(id: id)
                 
-                // Refresh selected collection to remove deleted paper
+                // if collection is selected, refresh selected collection to remove deleted paper
                 if let selected = selectedCollection {
                     selectCollection(selected)
                 }
                 
-                // Refresh collections list to update paper counts
+                // refresh collections list to update paper counts
                 await MainActor.run {
                     loadCollections()
                 }
