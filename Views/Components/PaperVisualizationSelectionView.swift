@@ -174,7 +174,7 @@ struct CollectionCard: View {
                         .lineLimit(2)
                     
                     HStack {
-                        Text("by \(collection.owner)")
+                        Text("by \(collection.owner ?? "Unknown")")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         

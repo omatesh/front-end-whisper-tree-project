@@ -192,11 +192,20 @@ struct CollectionVisualizationView: View {
     }
     
     private func getChartBounds(for viz: VisualizationResponse) -> (xRange: ClosedRange<Double>, yRange: ClosedRange<Double>) {
+        // Debug: Print all points to see what we have
+        print("📊 Chart bounds - Total points: \(viz.points.count)")
+        for point in viz.points.prefix(3) {
+            print("   Point: '\(point.title)' cluster: '\(point.clusterName)' id: \(point.clusterId)")
+        }
+        
         // Find user input point
         guard let userPoint = viz.points.first(where: { isUserInputPoint($0) }) else {
+            print("📊 No user input point found, using auto bounds")
             // Fallback to auto bounds if no user input
             return getAutoBounds(for: viz)
         }
+        
+        print("📊 Found user input point: '\(userPoint.title)' at (\(userPoint.x), \(userPoint.y))")
         
         // Center around user input point
         let centerX = userPoint.x
@@ -206,15 +215,16 @@ struct CollectionVisualizationView: View {
         let xValues = viz.points.map { $0.x }
         let yValues = viz.points.map { $0.y }
         
-        let dataXRange = (xValues.max() ?? centerX) - (xValues.min() ?? centerX)
-        let dataYRange = (yValues.max() ?? centerY) - (yValues.min() ?? centerY)
+        // Calculate required range to include all points from user input center
+        let maxDistanceX = max(abs((xValues.max() ?? centerX) - centerX), abs((xValues.min() ?? centerX) - centerX))
+        let maxDistanceY = max(abs((yValues.max() ?? centerY) - centerY), abs((yValues.min() ?? centerY) - centerY))
         
         // Add padding and minimum range for each axis independently
         let paddingFactor = 1.1
         let minimumRange = 0.5
         
-        let xRange = max(dataXRange * paddingFactor, minimumRange)
-        let yRange = max(dataYRange * paddingFactor, minimumRange)
+        let xRange = max(maxDistanceX * 2 * paddingFactor, minimumRange)
+        let yRange = max(maxDistanceY * 2 * paddingFactor, minimumRange)
         
         let halfXRange = xRange / 2
         let halfYRange = yRange / 2

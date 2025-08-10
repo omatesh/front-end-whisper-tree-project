@@ -45,7 +45,7 @@ struct ContentView: View { //App view starts here
                         }
                         .padding()
                         
-                        Button("🕸️ Paper Network") {
+                        Button("Idea Analysis") {
                             showNetworkView = true        //controls whether the pop-up (sheet) is visible
                         }
                         .padding()
@@ -112,9 +112,8 @@ struct ContentView: View { //App view starts here
             )
         }
         .fullScreenCover(isPresented: $showNetworkView) { //view modifier. When ... true, -> (pop-up-full screen)
-            PaperNetworkView {                                      // ContentView(Parent) → PaperNetworkView
-                //The callback is passed, but without naming the parameter
-                showNetworkView = false                             //updates state variable
+            IdeaAnalysisView {
+                showNetworkView = false
             }
         }
         .fullScreenCover(isPresented: $showVisualizationView) {    //When ... true, -> (pop-up-full screen)
@@ -278,4 +277,5 @@ struct ContentView: View { //App view starts here
             }
         }
     }
+    
 }
