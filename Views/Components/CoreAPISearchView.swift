@@ -74,10 +74,8 @@ struct CoreAPISearchView: View {
                             set: { newId in
                                 if newId == -2 {
                                     // Special value for "Create New Collection"
-                                    print("🔄 [PICKER] Create new collection selected")
                                     showNewCollectionForm = true
                                 } else if let collection = availableCollections.first(where: { $0.id == newId }) {
-                                    print("🔄 [PICKER] Collection changed to: \(collection.title)")
                                     selectedCollection = collection
                                 }
                             }
@@ -336,11 +334,9 @@ struct CoreAPISearchView: View {
                                 isAddingToCollection: addingPapers.contains(item.id),
                                 selectedCollectionTitle: selectedCollection?.title ?? "Collection",
                                 onTap: {
-                                    print("📱 [TAP] Paper tapped: \(item.title)")
                                     selectedPaper = selectedPaper?.id == item.id ? nil : item
                                 },
                                 onAddToCollection: {
-                                    print("🚀 [CALLBACK] onAddToCollection called for: \(item.title)")
                                     addPaperToCollection(item)
                                 }
                             )
@@ -368,13 +364,11 @@ struct CoreAPISearchView: View {
                 }
             }
             .onAppear {
-                print("🔄 [ONAPPEAR] CoreAPISearchView appeared")
                 loadAvailableCollections()
                 setupPapersInCurrentCollectionIds()
                 loadSearchHistory()
             }
             .onChange(of: selectedCollection) {
-                print("🔄 [ONCHANGE] Selected collection changed to: \(selectedCollection?.title ?? "nil")")
                 setupPapersInCurrentCollectionIds()
             }
         }
@@ -386,7 +380,6 @@ struct CoreAPISearchView: View {
         if let savedData = UserDefaults.standard.data(forKey: "CoreAPISearchHistoryWithResults"),
            let decodedHistory = try? JSONDecoder().decode([SearchHistoryItem].self, from: savedData) {
             searchHistory = decodedHistory
-            print("📚 [HISTORY] Loaded \(searchHistory.count) search history items with results")
         }
     }
     
@@ -418,23 +411,19 @@ struct CoreAPISearchView: View {
         // Save to UserDefaults
         if let encodedData = try? JSONEncoder().encode(searchHistory) {
             UserDefaults.standard.set(encodedData, forKey: "CoreAPISearchHistoryWithResults")
-            print("📚 [HISTORY] Saved '\(trimmedQuery)' with \(results.count) results to history")
         }
     }
     
     private func loadHistoryResults(_ historyItem: SearchHistoryItem) {
-        print("📚 [HISTORY] Loading results for: \(historyItem.query)")
         searchResults = historyItem.results
         queryText = historyItem.query
         showSearchHistory = false
-        print("✅ [HISTORY] Loaded \(historyItem.results.count) cached results")
     }
     
     private func clearSearchHistory() {
         searchHistory.removeAll()
         UserDefaults.standard.removeObject(forKey: "CoreAPISearchHistoryWithResults")
         showSearchHistory = false
-        print("🗑️ [HISTORY] Cleared search history")
     }
 
     private func performSearch() {
@@ -455,51 +444,32 @@ struct CoreAPISearchView: View {
                 }
             } catch {
                 searchErrorMessage = "Failed to search Core API: \(error.localizedDescription)"
-                print("Search error: \(error)")
             }
             isLoading = false
         }
     }
 
     private func addPaperToCollection(_ item: SearchResultItem) {
-        print("🎯 [ADD PAPER] Starting addPaperToCollection")
-        print("🎯 [ADD PAPER] Paper title: \(item.title)")
-        print("🎯 [ADD PAPER] Paper coreId: \(item.coreId ?? "nil")")
-        print("🎯 [ADD PAPER] Paper id: \(item.id)")
-        
         guard let collectionId = selectedCollection?.id else {
-            print("❌ [ADD PAPER] No collection selected!")
             searchErrorMessage = "No collection selected"
             return
         }
         
-        print("🎯 [ADD PAPER] Selected collection ID: \(collectionId)")
-        print("🎯 [ADD PAPER] Selected collection title: \(selectedCollection?.title ?? "unknown")")
-
-        print("🎯 [ADD PAPER] Adding paper ID to addingPapers set")
         addingPapers.insert(item.id)
 
         Task {
             do {
-                print("🎯 [ADD PAPER] Calling onAddPaperToCollection...")
                 onAddPaperToCollection(collectionId, item)
-                print("✅ [ADD PAPER] onAddPaperToCollection call completed")
 
                 // Add the paper's ID to the local set to immediately update UI
-                print("🎯 [ADD PAPER] Adding paper to local papersInCurrentCollectionIds set")
                 papersInCurrentCollectionIds.insert(item.id)
 
                 // Optional: A small delay to show the progress indicator
-                print("🎯 [ADD PAPER] Waiting 0.5 seconds...")
                 try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
 
-                print("🎯 [ADD PAPER] Removing paper from addingPapers set")
                 addingPapers.remove(item.id)
-                print("✅ [ADD PAPER] Paper addition process completed successfully")
 
             } catch {
-                print("❌ [ADD PAPER] Error occurred: \(error)")
-                print("❌ [ADD PAPER] Error description: \(error.localizedDescription)")
                 addingPapers.remove(item.id)
                 searchErrorMessage = "Failed to add paper: \(error.localizedDescription)"
             }
@@ -508,33 +478,27 @@ struct CoreAPISearchView: View {
 
     // MARK: - Load Collections for Picker
     private func loadAvailableCollections() {
-        print("🔄 [LOAD COLLECTIONS] Loading available collections...")
         isLoadingCollections = true
         
         Task {
             do {
                 let collections = try await APIService.shared.loadCollections()
-                print("✅ [LOAD COLLECTIONS] Loaded \(collections.count) collections")
                 
                 await MainActor.run {
                     availableCollections = collections
                     
                     // If current selectedCollection is nil, but we had one passed in originally,
                     // try to find it in the loaded collections
-                    if selectedCollection == nil && !collections.isEmpty {
-                        print("🔄 [LOAD COLLECTIONS] No collection selected, keeping nil")
-                    } else if let currentSelected = selectedCollection {
+                    if let currentSelected = selectedCollection {
                         // Update selectedCollection with fresh data
                         if let updatedCollection = collections.first(where: { $0.id == currentSelected.id }) {
                             selectedCollection = updatedCollection
-                            print("🔄 [LOAD COLLECTIONS] Updated selected collection with fresh data")
                         }
                     }
                     
                     isLoadingCollections = false
                 }
             } catch {
-                print("❌ [LOAD COLLECTIONS] Error loading collections: \(error)")
                 await MainActor.run {
                     searchErrorMessage = "Failed to load collections: \(error.localizedDescription)"
                     isLoadingCollections = false
@@ -545,45 +509,30 @@ struct CoreAPISearchView: View {
 
     // MARK: - Helper Function
     private func setupPapersInCurrentCollectionIds() {
-        print("🔄 [SETUP] Setting up papers in current collection IDs")
-        
         if let currentPapers = selectedCollection?.papers {
-            print("🔄 [SETUP] Selected collection has \(currentPapers.count) papers")
-            
             // Create a set of core_ids from papers already in the collection
             var existingCoreIds = Set<String>()
             
             for paper in currentPapers {
-                print("🔄 [SETUP] Processing paper: \(paper.title)")
-                print("🔄 [SETUP] Paper core_id: \(paper.coreId ?? "nil")")
-                print("🔄 [SETUP] Paper id: \(paper.id)")
-                
                 // If paper has a core_id, use that for comparison
                 if let coreId = paper.coreId, !coreId.isEmpty {
                     existingCoreIds.insert(coreId)
-                    print("🔄 [SETUP] Added core_id: \(coreId)")
                 }
                 // Also add the paper title as fallback for manual papers
                 existingCoreIds.insert(paper.title)
-                print("🔄 [SETUP] Added title: \(paper.title)")
             }
             
             papersInCurrentCollectionIds = existingCoreIds
-            print("📋 [SETUP] Final papers already in collection: \(existingCoreIds)")
         } else {
-            print("🔄 [SETUP] No selected collection or no papers in collection")
             papersInCurrentCollectionIds = []
         }
     }
     
     // MARK: - Create New Collection
     private func createNewCollection(title: String, owner: String, description: String) {
-        print("🔄 [CREATE COLLECTION] Creating new collection: \(title)")
-        
         Task {
             do {
                 try await APIService.shared.createCollection(title: title, owner: owner, description: description)
-                print("✅ [CREATE COLLECTION] Collection created successfully")
                 
                 // Reload collections and select the new one
                 await MainActor.run {
@@ -598,12 +547,10 @@ struct CoreAPISearchView: View {
                     // Find and select the newly created collection
                     if let newCollection = availableCollections.first(where: { $0.title == title }) {
                         selectedCollection = newCollection
-                        print("✅ [CREATE COLLECTION] New collection selected: \(newCollection.title)")
                     }
                 }
                 
             } catch {
-                print("❌ [CREATE COLLECTION] Error: \(error)")
                 await MainActor.run {
                     searchErrorMessage = "Failed to create collection: \(error.localizedDescription)"
                     showNewCollectionForm = false
@@ -795,10 +742,6 @@ struct PaperSearchResultRow: View {
                         .foregroundColor(.green)
                 } else {
                     Button {
-                        print("🔘 [BUTTON] Add to collection button tapped")
-                        print("🔘 [BUTTON] Paper: \(paper.title)")
-                        print("🔘 [BUTTON] Is already in collection: \(isAlreadyInCollection)")
-                        print("🔘 [BUTTON] Is adding to collection: \(isAddingToCollection)")
                         onAddToCollection()
                     } label: {
                         HStack {

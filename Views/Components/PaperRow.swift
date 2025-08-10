@@ -132,15 +132,3 @@ struct PaperRow: View {
     }
 }
 
-#Preview {
-    VStack {
-        // mock data
-        // or sample data from the app
-        Text("Paper rows would appear here")
-            .foregroundColor(.secondary)
-        
-        // Plaseholder
-    }
-    .padding()
-    .background(Color(.systemGroupedBackground))
-}

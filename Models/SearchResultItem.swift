@@ -1,5 +1,5 @@
 //
-//  SEarchResultItem.swift
+//  SearchResultItem.swift
 //  front-end-whisper-tree
 //
 //  Created by Valzhina on 7/25/25.

@@ -31,7 +31,6 @@ struct CollectionVisualizationView: View {
         }
         
         if isUserInputPoint(point) {
-            print("🎯 Rendering user input: \(point.title) at (\(point.x), \(point.y)) - cluster: \(point.clusterName), id: \(point.clusterId)")
             return .gray
         }
         
@@ -53,7 +52,6 @@ struct CollectionVisualizationView: View {
     
     private func getSymbolSize(for point: VisualizationPoint) -> CGFloat {
         if isUserInputPoint(point) {
-            print("🔍 User input symbol size: \(selectedPoint?.id == point.id ? 800 : 600)")
             return selectedPoint?.id == point.id ? 800 : 600  // Make it MUCH larger to ensure visibility
         } else {
             return selectedPoint?.id == point.id ? 250 : 200  // Regular dots
@@ -186,26 +184,53 @@ struct CollectionVisualizationView: View {
         }
         .sheet(isPresented: $showPointDetails) {
             if let selected = selectedPoint {
-                PointDetailsView(point: selected)
+                NavigationView {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text(selected.title)
+                                .font(.title2)
+                                .fontWeight(.bold)
+                            
+                            if isUserInputPoint(selected) {
+                                Text("👤 User Input")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color.gray.opacity(0.2))
+                                    .cornerRadius(4)
+                            }
+                            
+                            Text("Full Text")
+                                .font(.headline)
+                            
+                            Text(selected.fullText)
+                                .font(.body)
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
+                            
+                            Spacer()
+                        }
+                        .padding()
+                    }
+                    .navigationTitle("Paper Details")
+                    .navigationBarItems(
+                        trailing: Button("Done") {
+                            showPointDetails = false
+                        }
+                    )
+                }
             }
         }
     }
     
     private func getChartBounds(for viz: VisualizationResponse) -> (xRange: ClosedRange<Double>, yRange: ClosedRange<Double>) {
-        // Debug: Print all points to see what we have
-        print("📊 Chart bounds - Total points: \(viz.points.count)")
-        for point in viz.points.prefix(3) {
-            print("   Point: '\(point.title)' cluster: '\(point.clusterName)' id: \(point.clusterId)")
-        }
-        
         // Find user input point
         guard let userPoint = viz.points.first(where: { isUserInputPoint($0) }) else {
-            print("📊 No user input point found, using auto bounds")
             // Fallback to auto bounds if no user input
             return getAutoBounds(for: viz)
         }
-        
-        print("📊 Found user input point: '\(userPoint.title)' at (\(userPoint.x), \(userPoint.y))")
         
         // Center around user input point
         let centerX = userPoint.x

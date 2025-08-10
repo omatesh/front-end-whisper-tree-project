@@ -15,7 +15,6 @@ struct ContentView: View { //App view starts here
     @State private var showAddForm = false
     @State private var showSearchSheet = false
     @State private var showNetworkView = false
-    @State private var showVisualizationView = false
     @State private var errorMessage = ""
 
     var body: some View {
@@ -50,10 +49,6 @@ struct ContentView: View { //App view starts here
                         }
                         .padding()
                         
-                        Button("📊 Visualize Papers") {
-                            showVisualizationView = true  //controls whether the pop-up (sheet) is visible
-                        }
-                        .padding()
                     }
                 }
                 .background(Color(.systemBackground))    // uses the system’s default background color
@@ -115,12 +110,6 @@ struct ContentView: View { //App view starts here
             IdeaAnalysisView {
                 showNetworkView = false
             }
-        }
-        .fullScreenCover(isPresented: $showVisualizationView) {    //When ... true, -> (pop-up-full screen)
-            PaperVisualizationSelectionView(                       // ContentView(Parent) → PaperVis..
-                collections: collections,
-                onDismiss: { showVisualizationView = false }
-            )
         }
         // watches the showSearchSheet Boolean state
         .onChange(of: showSearchSheet) {
