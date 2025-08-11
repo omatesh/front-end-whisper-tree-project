@@ -10,7 +10,9 @@ import SwiftUI
 //Pure presentation component with callback-based actions
 struct PaperRow: View {
     let paper: Paper // view data
-    let onDeletePaper: (Int) -> Void // view action
+    let onDeletePaper: (Paper) -> Void // delete action
+    let onStarPaper: (Int) -> Void // star toggle action
+    @Binding var isDeleting: Bool // Shared deletion state from parent
 
     var body: some View {
         HStack {
@@ -64,10 +66,7 @@ struct PaperRow: View {
                     //Tries to create a URL object from the urlString
                     if let urlString = paper.url, !urlString.isEmpty, let url = URL(string: urlString) {
                         Link(destination: url) {
-                            HStack(spacing: 2) {
-                                Image(systemName: "link")
-                                Text("View")
-                            }
+                            Text("View")
                         }
                         .font(.caption)
                         .foregroundColor(.blue)
@@ -76,10 +75,7 @@ struct PaperRow: View {
                     // Download URL link (for PDFs from CORE)
                     if let downloadUrlString = paper.downloadUrl, !downloadUrlString.isEmpty, let downloadUrl = URL(string: downloadUrlString) {
                         Link(destination: downloadUrl) {
-                            HStack(spacing: 2) {
-                                Image(systemName: "arrow.down.doc")
-                                Text("PDF")
-                            }
+                            Text("PDF")
                         }
                         .font(.caption)
                         .foregroundColor(.green)
@@ -97,27 +93,37 @@ struct PaperRow: View {
             Spacer()
 
             VStack(spacing: 8) {
-                // Display stars with a star graphic icon
-                HStack(spacing: 2) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.yellow)
-                    Text("\(paper.likesCount)")
-                }
-                .font(.caption)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(Color.yellow.opacity(0.2)))
-
+                // Star/unstar button
                 Button(action: {
-                    onDeletePaper(paper.id)
+                    onStarPaper(paper.id)
                 }) {
-                    Image(systemName: "trash")
-                        .font(.caption)
-                        .foregroundColor(.red)
+                    Text(paper.likesCount > 0 ? "★" : "☆")
+                        .font(.title2)
+                        .foregroundColor(paper.likesCount > 0 ? .yellow : .gray)
                 }
                 .buttonStyle(BorderlessButtonStyle())
+
+                Button(action: {
+                    guard !isDeleting else { return } // Prevent multiple taps
+                    
+                    print("PaperRow: Delete button tapped for paper ID: \(paper.id), title: \(paper.title)")
+                    isDeleting = true // Immediately disable button
+                    onDeletePaper(paper) // Call delete function
+                }) {
+                    if isDeleting {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .progressViewStyle(CircularProgressViewStyle(tint: .red))
+                    } else {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+                .disabled(isDeleting) // Disable button while deleting
+                .buttonStyle(BorderlessButtonStyle())
                 .padding(4)
-                .background(Circle().fill(Color.red.opacity(0.1)))
+                .background(Circle().fill(Color.red.opacity(isDeleting ? 0.05 : 0.1)))
                 .contentShape(Circle())
             }
         }

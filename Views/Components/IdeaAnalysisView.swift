@@ -76,8 +76,6 @@ struct IdeaAnalysisView: View {
                                 if let selected = selectedCollection {
                                     VStack(alignment: .leading, spacing: 4) {
                                         HStack {
-                                            Image(systemName: "folder.fill")
-                                                .foregroundColor(.blue)
                                             Text(selected.title)
                                                 .font(.subheadline)
                                                 .fontWeight(.semibold)
@@ -166,6 +164,7 @@ struct IdeaAnalysisView: View {
                 CollectionVisualizationView(
                     visualization: visualizationData,
                     title: "Idea Analysis",
+                    selectedCollection: selectedCollection,
                     onDismiss: { showVisualization = false }
                 )
             }

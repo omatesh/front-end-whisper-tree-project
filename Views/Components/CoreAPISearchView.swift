@@ -21,6 +21,8 @@ struct CoreAPISearchView: View {
     @State private var searchHistory: [SearchHistoryItem] = [] // Search history with results
     @State private var showSearchHistory: Bool = false // Toggle for history view
     @State private var showNewCollectionForm: Bool = false // Show inline collection form
+    @State private var showDuplicateAlert: Bool = false // Show duplicate paper alert
+    @State private var duplicatePaperTitle: String = "" // Title of duplicate paper for alert
 
     // MARK: - Search History Data Structure
     struct SearchHistoryItem: Codable, Identifiable {
@@ -55,7 +57,7 @@ struct CoreAPISearchView: View {
     var body: some View {
         NavigationView {
             List {
-                // ADDED: Collection Selection Section
+                //Collection Selection Section
                 Section {
                     if isLoadingCollections {
                         HStack {
@@ -83,7 +85,7 @@ struct CoreAPISearchView: View {
                             Text("Select a collection...")
                                 .tag(-1)
                             
-                            Text("➕ Create New Collection")
+                            Text(" Create New Collection")
                                 .tag(-2)
                             
                             ForEach(availableCollections) { collection in
@@ -115,8 +117,6 @@ struct CoreAPISearchView: View {
                         if let selected = selectedCollection {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    Image(systemName: "folder.fill")
-                                        .foregroundColor(.blue)
                                     Text(selected.title)
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
@@ -163,7 +163,7 @@ struct CoreAPISearchView: View {
                         Button(action: {
                             showSearchHistory.toggle()
                         }) {
-                            Image(systemName: "clock")
+                            Text("History")
                                 .foregroundColor(.blue)
                         }
                         .buttonStyle(BorderlessButtonStyle())
@@ -353,8 +353,8 @@ struct CoreAPISearchView: View {
                     }
                 }
                 
-                // Show selected paper count
-                if let selectedPaper = selectedPaper {
+                // Show deselect button when paper is selected
+                if selectedPaper != nil {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Deselect") {
                             self.selectedPaper = nil
@@ -371,6 +371,13 @@ struct CoreAPISearchView: View {
             .onChange(of: selectedCollection) {
                 setupPapersInCurrentCollectionIds()
             }
+        }
+        .alert("Paper Already in Collection", isPresented: $showDuplicateAlert) {
+            Button("OK") {
+                showDuplicateAlert = false
+            }
+        } message: {
+            Text("The paper '\(duplicatePaperTitle)' is already in this collection. Please choose a different collection or select a different paper to add.")
         }
     }
 
@@ -435,8 +442,6 @@ struct CoreAPISearchView: View {
         Task {
             do {
                 searchResults = try await APIService.shared.searchCoreAPI(query: queryText, limit: limit)
-                // For testing with mock data, use this instead:
-                // searchResults = try await APIService.shared.searchCoreAPIMock(query: queryText, limit: limit)
                 
                 // Save search results to history
                 await MainActor.run {
@@ -455,6 +460,13 @@ struct CoreAPISearchView: View {
             return
         }
         
+        // Check if paper is already in the collection
+        if papersInCurrentCollectionIds.contains(item.id) {
+            duplicatePaperTitle = item.title
+            showDuplicateAlert = true
+            return
+        }
+        
         addingPapers.insert(item.id)
 
         Task {
@@ -468,6 +480,9 @@ struct CoreAPISearchView: View {
                 try await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
 
                 addingPapers.remove(item.id)
+                
+                // Show success message
+                searchErrorMessage = "Successfully added '\(item.title)' to collection!"
 
             } catch {
                 addingPapers.remove(item.id)
@@ -651,7 +666,7 @@ struct PaperSearchResultRow: View {
                 Spacer()
                 
                 // Selection indicator
-                Image(systemName: isSelected ? "chevron.up" : "chevron.down")
+                Text(isSelected ? "▲" : "▼")
                     .foregroundColor(.blue)
                     .font(.caption)
             }
@@ -702,10 +717,7 @@ struct PaperSearchResultRow: View {
                         // Download PDF link
                         if let downloadUrlString = paper.downloadUrl, !downloadUrlString.isEmpty, let downloadUrl = URL(string: downloadUrlString) {
                             Link(destination: downloadUrl) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.down.doc")
-                                    Text("Download PDF")
-                                }
+                                Text("Download PDF")
                             }
                             .font(.caption)
                             .foregroundColor(.green)
@@ -714,10 +726,7 @@ struct PaperSearchResultRow: View {
                         // Regular URL link
                         if let urlString = paper.url, !urlString.isEmpty, let url = URL(string: urlString) {
                             Link(destination: url) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "link")
-                                    Text("View Paper")
-                                }
+                                Text("View Paper")
                             }
                             .font(.caption)
                             .foregroundColor(.blue)
@@ -737,7 +746,7 @@ struct PaperSearchResultRow: View {
             // Add to collection button
             HStack {
                 if isAlreadyInCollection {
-                    Text("✅ Already in this collection")
+                    Text("Already in this collection")
                         .font(.caption)
                         .foregroundColor(.green)
                 } else {

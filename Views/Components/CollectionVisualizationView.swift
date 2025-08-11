@@ -7,11 +7,13 @@ struct CollectionVisualizationView: View {
     
     let visualization: VisualizationResponse
     let title: String
+    let selectedCollection: Collection?
     let onDismiss: () -> Void
     
-    init(visualization: VisualizationResponse, title: String = "Collection Analysis", onDismiss: @escaping () -> Void) {
+    init(visualization: VisualizationResponse, title: String = "Collection Analysis", selectedCollection: Collection? = nil, onDismiss: @escaping () -> Void) {
         self.visualization = visualization
         self.title = title
+        self.selectedCollection = selectedCollection
         self.onDismiss = onDismiss
     }
     
@@ -38,13 +40,13 @@ struct CollectionVisualizationView: View {
     }
     
     private func isUserInputPoint(_ point: VisualizationPoint) -> Bool {
-        // Check if this is user input by cluster name since isUserInput field doesn't exist in VisualizationPoint
+        // Checks if this is user input by cluster name since isUserInput field doesn't exist in VisualizationPoint
         return point.clusterName == "User Input" || point.clusterId == -1
     }
     
     private func getSymbol(for point: VisualizationPoint) -> BasicChartSymbolShape {
         if isUserInputPoint(point) {
-            return .diamond  // Use diamond for user input since star isn't available
+            return .diamond  // Uses diamond for user input since star isn't available
         } else {
             return .circle
         }
@@ -52,7 +54,7 @@ struct CollectionVisualizationView: View {
     
     private func getSymbolSize(for point: VisualizationPoint) -> CGFloat {
         if isUserInputPoint(point) {
-            return selectedPoint?.id == point.id ? 800 : 600  // Make it MUCH larger to ensure visibility
+            return selectedPoint?.id == point.id ? 800 : 600  // Makes it MUCH larger to ensure visibility
         } else {
             return selectedPoint?.id == point.id ? 250 : 200  // Regular dots
         }
@@ -91,8 +93,28 @@ struct CollectionVisualizationView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 16) {
-                Spacer().frame(height: 30)
+            VStack(spacing: 12) {
+                Spacer().frame(height: 60)
+                
+                // Title and Collection Info
+                VStack(spacing: 8) {
+                    Text(title)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    
+                    if let collection = selectedCollection {
+                        VStack(spacing: 4) {
+                            Text("Target Collection")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Text(collection.title)
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
                 
                 // Chart
                 chartView(for: visualization)
@@ -174,7 +196,6 @@ struct CollectionVisualizationView: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: Button("Back") {
@@ -303,7 +324,7 @@ struct CollectionVisualizationView: View {
                 ForEach(uniqueClusters, id: \.self) { clusterName in
                     HStack(spacing: 6) {
                         if clusterName == "User Input" {
-                            Image(systemName: "diamond.fill")
+                            Text("♦")
                                 .foregroundColor(.gray)
                                 .font(.caption)
                         } else {

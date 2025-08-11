@@ -16,6 +16,7 @@ struct ContentView: View { //App view starts here
     @State private var showSearchSheet = false
     @State private var showNetworkView = false
     @State private var errorMessage = ""
+    @State private var isDeleting = false
 
     var body: some View {
         NavigationView {                                  // ← CONTAINER that provides navigation context
@@ -34,12 +35,12 @@ struct ContentView: View { //App view starts here
 
                     HStack {                              //creates a horizontal stack w/4 buttons
                                                           // Each button sets a Bool state variable to true
-                        Button("➕ Create New Collection") {
+                        Button("Create New Collection") {
                             showAddForm = true            //controls whether the pop-up (sheet) is visible
                         }
                         .padding()
 
-                        Button("🔍 Search Core API") {
+                        Button("Search Scientific Papers") {
                             showSearchSheet = true        //controls whether the pop-up (sheet) is visible
                         }
                         .padding()
@@ -64,7 +65,7 @@ struct ContentView: View { //App view starts here
                                 //If selectedCollection.id is equal to collection.id, then set isSelected
                                 //to true. Otherwise, false
                                 isSelected: selectedCollection?.id == collection.id,
-                                selectedCollection: selectedCollection,
+                                selectedCollection: $selectedCollection,
                                 onSelect: {                         // ← ContedntView HANDLES actions
                                     selectCollection(collection)    // ContentView CALLS this function
                                 },
@@ -78,8 +79,10 @@ struct ContentView: View { //App view starts here
                                 onAddPaper: addPaper, //addPaper($0, $1) means pass the first and second
                                 // arguments that the child sends up to the addPaper function
                                 
-                                // Shorthand for: onDeletePaper: { deletePaper($0) }
-                                onDeletePaper: deletePaper
+                                // Enhanced callback with completion handling
+                                onDeletePaper: deletePaper,
+                                // Shorthand for: onStarPaper: { starPaper($0) }
+                                onStarPaper: starPaper
                             )
                             .id(collection.id)  //Use this existing unique ID value from my data (collection.id)
                             //as the identity (name tag) for this view
@@ -113,12 +116,15 @@ struct ContentView: View { //App view starts here
         }
         // watches the showSearchSheet Boolean state
         .onChange(of: showSearchSheet) {
+            print("showSearchSheet changed to: \(showSearchSheet)")
             if !showSearchSheet { //only run when showSearchSheet becomes false
+                print("Search sheet closed - refreshing collections")
                 //meaning the search sheet (pop-up) is closed
                 Task {
                     try await Task.sleep(nanoseconds: 500_000_000)
                     //after the wait, run loadCollections() on the main thread, and update the UI
                     await MainActor.run {
+                        print("Calling loadCollections() after sheet closed")
                         loadCollections()
                     }
                 }
@@ -222,10 +228,10 @@ struct ContentView: View { //App view starts here
     func addPaper(collectionId: Int, searchResult: SearchResultItem) {
         Task {
             do {
-                //adds a new paper to the backend database (via API)
+                // Add paper to backend via API
                 try await APIService.shared.addPaper(collectionId: collectionId, searchResult: searchResult)
                 
-                // refreshes the selected collection to show new paper
+                // Refresh the selected collection to get updated papers with proper IDs
                 if let selected = selectedCollection, selected.id == collectionId {
                     let papers = try await APIService.shared.fetchPapers(for: collectionId)
                     
@@ -233,6 +239,11 @@ struct ContentView: View { //App view starts here
                         var updatedCollection = selected
                         updatedCollection.papers = papers
                         selectedCollection = updatedCollection
+                        
+                        // Update the corresponding collection in the main collections array
+                        if let index = collections.firstIndex(where: { $0.id == collectionId }) {
+                            collections[index] = updatedCollection
+                        }
                     }
                 }
             } catch {
@@ -243,25 +254,80 @@ struct ContentView: View { //App view starts here
         }
     }
 
-    func deletePaper(_ id: Int) {
-        Task { //creates an async task to handle the deletion without blocking the UI
+    func deletePaper(paper: Paper) {
+        // Prevent new requests if one is already in progress
+        guard !isDeleting else { return }
+        
+        isDeleting = true // Block new requests
+        
+        // Optimistically remove the paper from the UI immediately
+        if let collectionId = selectedCollection?.id,
+           let collectionIndex = collections.firstIndex(where: { $0.id == collectionId }) {
+            collections[collectionIndex].papers.removeAll(where: { $0.id == paper.id })
+            selectedCollection = collections[collectionIndex]
+        }
+
+        Task {
             do {
-                //calls the backend API to actually delete the paper from the database
-                try await APIService.shared.deletePaper(id: id)
+                // Call the backend API to delete the paper
+                try await APIService.shared.deletePaper(id: paper.id)
                 
-                // if collection is selected, refresh selected collection to remove deleted paper
+                await MainActor.run {
+                    // SUCCESS: The UI is already updated, so no more work is needed here
+                    errorMessage = "" // Clear any old error messages
+                    isDeleting = false // Re-enable deletion
+                }
+
+            } catch {
+                await MainActor.run {
+                    // FAILURE: Add the paper back to the collection
+                    print("Deletion failed, adding paper ID \(paper.id) back to UI.")
+                    if let collectionId = selectedCollection?.id,
+                       let collectionIndex = collections.firstIndex(where: { $0.id == collectionId }) {
+                        collections[collectionIndex].papers.append(paper)
+                        collections[collectionIndex].papers.sort { $0.id < $1.id } // Re-sort if needed
+                        selectedCollection = collections[collectionIndex]
+                    }
+                    
+                    errorMessage = "Failed to delete paper: \(error.localizedDescription)"
+                    isDeleting = false // Re-enable deletion
+                }
+            }
+        }
+    }
+    
+    func refreshSelectedCollection(_ collection: Collection) async {
+        print("refreshSelectedCollection: Starting refresh for collection ID: \(collection.id)")
+        do {
+            let papers = try await APIService.shared.fetchPapers(for: collection.id)
+            print("refreshSelectedCollection: Fetched \(papers.count) papers")
+            await MainActor.run {
+                var updatedCollection = collection
+                updatedCollection.papers = papers
+                selectedCollection = updatedCollection
+                print("refreshSelectedCollection: Updated selectedCollection with \(papers.count) papers")
+            }
+        } catch {
+            print("refreshSelectedCollection: Error - \(error.localizedDescription)")
+            await MainActor.run {
+                errorMessage = "Error refreshing collection: \(error.localizedDescription)"
+            }
+        }
+    }
+    
+    func starPaper(_ id: Int) {
+        Task {
+            do {
+                let newStarStatus = try await APIService.shared.togglePaperStar(id: id)
+                
+                // Refresh selected collection to update star status
                 if let selected = selectedCollection {
                     selectCollection(selected)
                 }
                 
-                // refresh collections list to update paper counts
-                await MainActor.run {
-                    loadCollections()
-                }
-                
             } catch {
                 await MainActor.run {
-                    errorMessage = "Error deleting paper: \(error.localizedDescription)"
+                    errorMessage = "Error toggling paper star: \(error.localizedDescription)"
                 }
             }
         }

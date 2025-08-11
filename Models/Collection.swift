@@ -11,23 +11,25 @@ struct Collection: Codable, Identifiable, Hashable {
     let title: String
     let owner: String?
     let description: String
-    let papersCount: Int
     var papers: [Paper]
     
+    // Computed property that always reflects the actual number of papers
+    var papersCount: Int {
+        return papers.count
+    }
+    
     // Add convenience initializer for creating new instances
-    init(id: Int, title: String, owner: String?, description: String, papersCount: Int, papers: [Paper]) {
+    init(id: Int, title: String, owner: String?, description: String, papers: [Paper]) {
         self.id = id
         self.title = title
         self.owner = owner
         self.description = description
-        self.papersCount = papersCount
         self.papers = papers
     }
 
     enum CodingKeys: String, CodingKey {
         case id = "collection_id"  // Updated to match your backend
         case title, owner, description
-        case papersCount = "papers_count"
         case papers
     }
 
@@ -37,7 +39,6 @@ struct Collection: Codable, Identifiable, Hashable {
         title = try container.decode(String.self, forKey: .title)
         owner = try container.decodeIfPresent(String.self, forKey: .owner)
         description = try container.decode(String.self, forKey: .description)
-        papersCount = try container.decode(Int.self, forKey: .papersCount)
         papers = try container.decodeIfPresent([Paper].self, forKey: .papers) ?? []
     }
     
@@ -47,7 +48,6 @@ struct Collection: Codable, Identifiable, Hashable {
         try container.encode(title, forKey: .title)
         try container.encodeIfPresent(owner, forKey: .owner)
         try container.encode(description, forKey: .description)
-        try container.encode(papersCount, forKey: .papersCount)
         try container.encode(papers, forKey: .papers)
     }
     

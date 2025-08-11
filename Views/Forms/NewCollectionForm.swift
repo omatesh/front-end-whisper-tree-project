@@ -30,7 +30,7 @@ struct NewCollectionForm: View {
                 }
                 
                 Section {
-                    // Optional: Add some helper text
+                    // Add some helper text
                     Text("Title is required. Owner and description are optional but recommended.")
                         .font(.caption)
                         .foregroundColor(.secondary)

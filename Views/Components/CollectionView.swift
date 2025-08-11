@@ -12,13 +12,16 @@ struct CollectionView: View {
     //PROPS (State flowing DOWN from parent)
     let collection: Collection // Data about the collection
     let isSelected: Bool //True or False
-    let selectedCollection: Collection? //The currently selected collection
+    @Binding var selectedCollection: Collection? //The currently selected collection
     //Not PROPS, but functions passed (Actions flowing UP to ContentView)
     let onSelect: () -> Void // item was tapped/selected
     let onClose: () -> Void  //Close item
     let onDelete: () -> Void //Delete item
     let onAddPaper: (Int, SearchResultItem) -> Void //add paper
-    let onDeletePaper: (Int) -> Void //Delete paper item
+    let onDeletePaper: (Paper) -> Void //Delete paper item
+    let onStarPaper: (Int) -> Void //Star/unstar paper item
+    
+    @State private var isDeletingPaper: Bool = false // Track paper deletion state
 
     var body: some View {
         VStack {
@@ -57,21 +60,27 @@ struct CollectionView: View {
                         onAddPaper(selected.id, searchResult) //calls onAddPaper (ContentView)
                     }
 
-                    if selected.papers.isEmpty {
+                    if selectedCollection?.papers.isEmpty ?? true {
                         Text("No papers in this collection yet.")
                             .foregroundColor(.secondary)
                             .italic()
                             .padding(.vertical)
                     } else {
                         //.count Swift array method
-                        Text("Papers (\(selected.papers.count))") //selecting key papers from the collection
+                        Text("Papers (\(selectedCollection?.papers.count ?? 0))") //selecting key papers from the collection
                             .font(.headline) // makes text bold and emphasized
                             .padding(.top) // adds space above the text
                         
                         LazyVStack(spacing: 12) {
-                        ForEach(selected.papers) { paper in                      // ← parent CREATES child
+                        ForEach(selectedCollection?.papers ?? []) { paper in     // ← use selectedCollection directly
                             PaperRow(paper: paper,                               // ← state flows down to PaperRow
-                                     onDeletePaper: onDeletePaper)               // ← callback f/PaperRow flows up
+                                     onDeletePaper: { paperToDelete in
+                                         Task {
+                                             await handlePaperDeletion(paperToDelete)
+                                         }
+                                     },                                          // ← async delete function
+                                     onStarPaper: onStarPaper,                   // ← star callback flows up
+                                     isDeleting: $isDeletingPaper)               // ← deletion state binding
                             }
                         }
                         .padding(.vertical, 8)
@@ -107,5 +116,26 @@ struct CollectionView: View {
         .padding()
         .background(isSelected ? Color.blue.opacity(0.1) : Color.gray.opacity(0.1))
         .cornerRadius(10)
+    }
+    
+    // MARK: - Paper Deletion Handler
+    private func handlePaperDeletion(_ paper: Paper) async {
+        do {
+            // Call the parent's delete paper function
+            onDeletePaper(paper)
+            
+            // Wait a moment for the API call to complete
+            try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
+            
+            // Reset deletion state on success
+            await MainActor.run {
+                isDeletingPaper = false
+            }
+        } catch {
+            // Reset deletion state on failure
+            await MainActor.run {
+                isDeletingPaper = false
+            }
+        }
     }
 }
