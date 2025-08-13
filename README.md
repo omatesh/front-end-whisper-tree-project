@@ -50,7 +50,7 @@
 
   **Backend:** Python, Flask <br />
   **Frontend:** SwiftUI, Swift <br />
-  **Databases:** PostgreSQL with SQLAlchemy ORM
+  **Databases:** PostgreSQL with SQLAlchemy ORM <br />
   **APIs:** CORE API, Gemini Embeddings API
 
 
