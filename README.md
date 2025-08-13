@@ -46,8 +46,6 @@
 
   ## Technologies and Stack
 
-  The app is built using modern iOS development practices with a focus on performance and user experience.
-
   **Backend:** Python, Flask <br />
   **Frontend:** SwiftUI, Swift <br />
   **Databases:** PostgreSQL with SQLAlchemy ORM <br />
