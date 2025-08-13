@@ -8,7 +8,7 @@
   - [Features](https://github.com/omatesh/front-end-whisper-tree-project#features)
   - [Technologies and Stack](https://github.com/omatesh/front-end-whisper-tree-project#technologies-and-stack)
   - [Core API Integration](https://github.com/omatesh/front-end-whisper-tree-project#core-api-integration)
-  - [AI Powered Analysis](https://github.com/omatesh/front-end-whisper-tree-project#ai-powered-analysis)
+  - [Gemini Embeddings API Integration](https://github.com/omatesh/front-end-whisper-tree-project#gemini-embeddings-API-integration)
 
   ## Features
 
@@ -94,7 +94,7 @@
   like line thickness and node proximity.
 
 
-  Installation
+  ##  Installation
 
   Requirements
 
